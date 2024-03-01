@@ -1,0 +1,86 @@
+% !TEX root = ../main.tex
+
+% Summary section
+
+\section{Summary}
+\subsection{Review}
+The paper \cite{eriksson2021scalable} proposed a constrained Bayesian optimization (CBO) algorithm, called SCBO, for black-box functions with black-box constraints. The algorithm is scalable for high-dimensional functions and able to support large batches for constrained problems even with asynchronous observations. To do this, the authors extended Thompson sampling to constrained optimization, transformed the objective and constrain functions to emphasize desired features, and used the trust region approach to keep samples local. The proposed method is shown in multiple experiment to match or outperform previous state-of-the-art methods on both high and low dimensions. In addition, two new high-dimensional constrained test problems of independent interest were introduced.\\
+\\
+Many early works on CBO focus on the constrained expected improvement (cEI) criterion \cite{schonlau1998global}, obtained by multiplying expected improvement and probability of feasibility, in various settings \cite{sobester2014engineering,parr2012infill}. SCBO, on the other hand, uses Thompson sampling (TS) \cite{thompson1933likelihood} to large batch sizes, developed by \cite{hernandez2017parallel}, to be scalable whereas methods based on predictive entropy search like PESC \cite{hern2016general} and Lagrangian relaxation like SLACK \cite{picheny2016bayesian} do not generally scale well to higher dimensions due to their computational costs. \cite{wang2016bayesian,eriksson2018scaling,rolland2018high} also used BO for high-dimensional problems with small sampling budgets but not in constrained setting. Most notably, the paper extended the trust region (TR) approach of TURBO \cite{eriksson2019scalable}, where samples are only collected from a hypercube around the best observation, to CBO context. However, the update criteria for the TR size seems too arbitrary and is not motivated by any prior works on TR based methods (see \cite{yuan2015recent} for a review). Another strength of \cite{eriksson2021scalable} is the use of transformations such as Gaussian copula \cite{wilson2010copula} and bilog to emphasize properties desired in the objective and constrains. Unfortunately, these transformations only benefited their proposed method. Other works such as \cite{snelson2003warped} and \cite{snoek2014input} also applied data-dependent transformations to black-box functions.\\
+\begin{itemize}
+    \item \textit{Originality:} The task of CBO is not a particularly new subject and there have been a few papers on the matter. Some aspects of the paper are new but most techniques utilized has been developed in previous works. The TR and TS aspect of SCBO have been well studied and is essentially an extension of TURBO to CBO setting. Other techniques such as the sample selection criterion and the transformations used on the objective and constraints are also well studied. However, the amalgamation of those techniques, in my opinion, is what gives SCBO an edge in performance compared to its predecessors. In addition, the paper provided a proof for the consistency of its proposed method that also extends to TURBO. Related works cited by the paper come from various approaches, which goes to show the authors are very familiar with the literature.
+    \item \textit{Quality:} The paper is technically sound and all of its claims are supported by experimental results. The experiments seem to cover many situations high dimensions (30D Keane bump function, 60D trajectory planning problem and 124D vehicle design problem) and low dimensions (3D tension-compression string problem, 4D pressure vessel design, 7D speed reducer problem, 10D Ackley problem and 12D robust multi-point optimization problem). The methods used are overall appropriate but there is room for improvement. The TR schedule could have been motivated by past works in more traditional optimization. There are many other criteria for sample selection that can overcome the weaknesses of the total constraint violation criterion stated in the paper. For these reasons, I would say the paper is still a work in progress. The authors did mention some weaknesses in the proposed method (total constraint violation susceptibility to scaling) but only to validate their subsequent decision to apply transformations to the target functions. Furthermore, the authors did not point out the reasoning behind the results of the ablation studies (section 4.7) for different acquisition functions. Specifically, the authors mentioned that TS outperforms EI for the 5D Rosenbrock function. Base on this, I think it is unfair that among the methods compared to SCBO, there does not seem to be any that uses TS.
+    \item \textit{Clarity:} The paper is well written and easy to follow. However, I think the technical details on the TR and TS being placed before the algorithm summary is a little distracting and the order should be reversed. In the experiment section, it was not immediately clear which problems the authors introduced and what makes them interesting. Therefore, my advice is to briefly mention this information before going into the details of each problem. The experiments themselves are clearly stated and therefore, can be reproduced. However, the source code for the proposed method and experiments was not provided.
+    \item \textit{Significance:} The proposed method is significant in that it highlights the benefit of TR and function transformation. Although the transformation in SCBO has been shown to not have much effect on other methods, I believe future methods should adopt the TR approach when dealing high dimensional problems. In addition, SCBO has been shown to outperform many previous state-of-the-art works. Furthermore, it also introduced two new high-dimensional constrained test problems (12D robust multi-point optimization problem and a constraint-based extension of the 60D trajectory planning problem) that can be used to test future algorithms. The multi-point optimization problem, in particular, is a great example of naturally increasing the number of constraints to a problem while keeping its dimension fixed.
+\end{itemize}
+\textbf{Questions:}
+\begin{itemize}
+    \item Is there any theoretical motivation to the choice of hyperparameters such as the thresholds for shrinking or expanding of TRs?
+    \item How would SCBO perform compared to other algorithms when its competitors also make use of the trust region approach?
+    \item How would SCBO perform for noisy functions?
+    \item TURBO uses several TRs simultaneously but SCBO only uses one. Is there a reason for this change?
+\end{itemize}
+
+\subsection{Methodological summary}
+\subsubsection{Set up}
+The task is to find
+\begin{align}
+    x^*=\underset{x\in \Omega}{\text{argmin}}f(x)\text{ s.t. }c_1(x)\le0,\ldots,c_m(x)\le0
+\end{align}
+where $f:\Omega\to\bbR$ and $c_l:\Omega\to\bbR,l=1,\ldots,m$ are black-box functions, i.e. functions we can only query values from, defined over a compact set $\Omega\subset \bbR^d$. For CBO, the practice is to model the objective $f$ and constrains $c_l$ using a multivariate Gaussian process (GP) surrogate. At each round, a batch (or a single) points are chosen, using a policy based on the current dataset (sampled points and observed values), to be observed and added to the dataset. After a stopping criterion has been satisfied, the procedure returns the point with the lowest objective value that satisfies the constrains.
+
+\subsubsection{Methodology}
+The steps SCBO algorithm follows are
+\begin{enumerate}
+    \item Evaluate an initial set of points and initialize the trust region, a hypercube with side length $L = L_{init}$, centered at a point of maximum utility.
+    \item Until the budget for samples is exhausted:
+    \begin{itemize}
+        \item Fit GP models to the transformed observations. 
+        \item Generate $r$ candidate points $x_1,\ldots,x_r\in \Omega$ in the trust region.
+        \item Choose a batch of $q$ points from these candidates to add to the dataset using TS for CBO.
+        \item Evaluate the objective and constraints at the $q$ new points.
+        \item Adapt the trust region by moving the center or initialize a new one.
+    \end{itemize}
+    \item Recommend an optimal feasible point (if any).
+\end{enumerate}
+The specifics of these steps are as follow:
+\begin{itemize}
+    \item \textbf{Thompson sampling in CBO:} SCBO uses TS as the main strategy for sample acquisition. To obtain a sample, TS starts by sampling a realization $(\hat{f}(x_i),\hat{c}_1(x_i),\ldots,\hat{c}_m(x_i))^T$ for each of the candidate point $x_i,i=1,\ldots,r$ from the posterior distribution of the objective and constraints given the current dataset. These realizations are then compared and the feasible (satisfying all constraints) point with the lowest objective value is the chosen sample. When there are no feasible points, the one with the lowest total constraint violation (TCV)
+    \begin{align}
+        \sum_{l=1}^m\max\{c_l(x),0\}
+    \end{align}
+    is chosen with objective value being the tiebreaker.\\
+    While TCV is a natural selection criterion, it struggles when functions have significantly varying magnitudes. This is because the sum structure of TCV is sensitive to scaling.\\
+    TS is the core of SCBO due to its simplistic formulation and ability to naturally balance between exploitation (choosing candidates with better objectives) and exploration (choosing uncertain candidates). Furthermore,
+    TS can handle batches of GP models since each of its step can be parallelized by running them on multiple GPUs, making computation more scalable. However, since the method is based on sampling, there is a certain variation in performance depending on the amount of uncertainty in the posterior, making TS unreliable in some cases compared to more deterministic policies such as EI.
+    \item \textbf{Maintaining the trust region:} When a new batch of samples is added, the center of a TR is shifted to the point of maximum utility (best objective or TCV). If at least one sample from the batch improves on the incumbent then the batch is considered a success, the success counter is increased by 1 and the failure counter resets to 0, otherwise it is considered a failure, the failure counter is increased by 1 and the success counter resets to 0. When a certain number of successes (failures) have been counted, the length $L$ of the TR increases (decreases) by a factor of 2 and both counters reset. And when $L$ falls below a certain threshold, the current TR is terminated and a new one is initialized.\\
+    The main purpose of TR is to sample locally and, as a result, reduce the explorative behaviour of the policy. This addresses the phenomenon where samples of popular policies become too spread out and fail to zoom in on promising solutions when using BO in high dimensional settings. The local search makes it harder to find the global optimum within budget but the trade off is being able to find a good local optimum faster. The main challenge is to find a suitable update schedule for the TRs as well as the upper and lower limits to TR sizes. A large TR covers more grounds but makes samples more spread out while a small TR zooms in on good solutions better but cannot see as much of the search space.
+    \item \textbf{Transformations of objective and constraints:} the paper applied a Gaussian copula, a function that operates on the data quantiles, to the objective and a bilog transformation to the constrains where
+    \begin{align}
+        \text{bilog}(y) = \text{sgn}(y)\log(1+|y|).
+    \end{align}
+    The former magnifies differences between values at the end of the observed range for the objective while the latter emphasizes the change of sign as well as dampens large values for the constrains. This step is crucial to SCBO since it cover the scaling weakness that TCV has. However, these transformations were shown to not as noticeable an impact on other methods.
+\end{itemize}
+\subsubsection{Consistency}
+Given the following conditions:
+\begin{enumerate}
+    \item The initial points $\{y_i\}$ for SCBO are chosen such that for any $\delta>0$ and $x \in [0, 1]^d$ there exists $\nu(x, \delta) > 0$ such that the probability that at least one point in $\{y_i\}$ ends up in a ball centered at $x$ with radius $\delta$ is at least $\nu(x, \delta)$.
+    \item  The objective and constraints are bounded.
+    \item  There is a unique global minimizer $x^*$.
+    \item  SCBO considers any sampled point an improvement only if it improves the current best solution by at least some constant $\gamma > 0$.
+\end{enumerate}
+The paper also showed that SCBO is consistent in noise-less setting. They argued that conditions (2) and (4) make SCBO take a finite number of samples for any TR. Therefore, the algorithm will restart its TR infinitely often, creating an infinite subsequence $\{x_k(i)\}$ of initial points satisfying condition (1). Then global convergence follows from the proof of global convergence for random search under condition (3) \cite{spall2005introduction}. This proof also applies to TURBO since the finite sample argument works for both algorithms.
+
+\subsubsection{Crucial aspects and potential bottlenecks}
+The paper has shown that the trust region is crucial to the performance of SCBO. However, its update schedule is entirely based on empirical heuristics. Developing a more theoretical based schedule would improve the algorithm performance. Another weakness mentioned by the paper is the inability to handle highly varying functions of TCV. Because of this, the transformations used in SCBO are required and not optional like the other competitors. My suggestion is to use a variation of TCV that is more robust to scaling. Finally, the cost of learning the GP surrogate models tends to be the deciding factor to the method scalability. It is thanks to fast matrix vector multiplication implemented in the \textit{GPyTorch} package \cite{gardner2018gpytorch} and the CUDA kernel constructed via \textit{KeOPS} \cite{charlierkeops}, that BO inference for thousands of samples can be done in minutes.
+
+\subsubsection{Alternative methods}
+Other methods that were used in CBO include:
+\begin{enumerate}
+    \item \textbf{cEI} \cite{gardner2014bayesian} multiplies the expected improvement with the probability of feasibility. This one of the most well-known and natural methods for CBO. However, in the case of no available feasible observations, cEI becomes ill-defined and have to rely on the probability of feasibility to find feasible points first. 
+    \item \textbf{PESC} \cite{hern2016general} extends predictive entropy search to CBO and detailing how an approximation method that makes computation tractable. It is one of the first CBO methods that allows for decoupled evaluations of the objective and constraints. Its main drawback is the computation time since the acquisition function is approximated via Monte Carlo sampling.
+    \item \textbf{SLACK} \cite{picheny2016bayesian} lifted the constraints into the objective via the Lagrangian relaxation. It introduces the Lagrange multipliers and slack variables as hyperparameters that accompany the constraints along with the objective to turn the original problem into one without constraints. This modified problem is then solved with the hyperparameters sequentially changed. This essentially turn a constrained optimization problem into several unconstrained ones, which can be costly in high dimension.
+    \item \textbf{CMA-ES} \cite{kramer2010review} uses a covariance adaptation strategy to learn a second order model of the objective function. Furthermore, CMA-ES penalizes violations setting the fitness values of infeasible solutions to zero.
+    \item  \textbf{COBYLA} \cite{powell1994direct} also uses trust regions but model the objective and constrains using linear approximation.
+\end{enumerate}
+
