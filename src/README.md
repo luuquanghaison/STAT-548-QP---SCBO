@@ -9,3 +9,5 @@ The BO_result_functions file contains functions for the obptimization loop, upda
 The Repeat_optimization file contains a function for rerunning optimization loops.
 
 The WCEI file contains the definition for the acquisition class WCEI and related methods.
+
+The Stress_test_functions file contains the functions used in the Ablation study section of the report.
